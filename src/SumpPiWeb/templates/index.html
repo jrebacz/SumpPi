@@ -1,0 +1,192 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div style="width:100%;">
+    <canvas id="canvas"></canvas>
+    <button onclick="zoomout()" class="btn btn-primary btn-large">zoom out</button>
+    <button onclick="reset()" class="btn btn-primary btn-large">reset</button>
+    <button onclick="zoomin()" class="btn btn-primary btn-large">zoom in</button>
+</div>
+
+<div class="jumbotron">
+    <p class="lead">*The acoustic sensor cannot read distances less than 4 cm away.</p>
+
+    {% if not cloud %}
+    <h3>Alarm Settings</h3>
+    <nobr>
+        <label for="input_distance">Distance to alarm (cm): </label>
+        <input type="text" id="input_distance" size="4">
+    </nobr>
+    <br />
+    <nobr>
+        <label for="input_time_in_alarm">Time in alarm (seconds):</label>
+        <input type="text" id="input_time_in_alarm" size="4">
+    </nobr>
+    <br />
+    <nobr>
+        <label for="input_enable_audible_alarm">Enable audible alarm: </label>
+        <input type="checkbox" id="input_enable_audible_alarm" value="enable_audible_alarm">
+    </nobr>
+    <br />
+    <button onclick="setAlarmSettings()" class="btn btn-primary btn-large">set alarm settings</button>
+    {% endif %}
+</div>
+
+<script>
+    var data = []
+    var alarm_line = []
+    var labels = []
+
+    var alarm_limit = 0.0
+    
+    $.getJSON('alarm_settings', function (resp) {
+        $('#input_distance').val(resp.distance)
+        window.alarm_limit = resp.distance
+
+        $('#input_time_in_alarm').val(resp.time_in_alarm)
+
+        $('#input_enable_audible_alarm').prop('checked', resp.enable_audible_alarm == "true")
+    });
+
+    var ctx = document.getElementById("canvas").getContext('2d');
+    var cfg = {
+        type: 'Line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'series',
+                data: data,
+                type: 'line',
+                pointRadius: 2,
+                fill: 'start',
+                
+                lineTension: 0,
+                borderColor: '#ADD8E6',
+                borderWidth: 2
+            },
+            {
+                label: 'alarm distance',
+                data: alarm_line,
+                type: 'line',
+                pointRadius: 0,
+                fill: 'end',
+                backgroundColor: '#FF000020',
+                lineTension: 0,
+                borderColor: '#AD0000',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            animation: false,
+            title: {
+                display: true,
+                text: "Sump pit water surface depth"
+            },
+            tooltips: {
+                enabled: true,
+                mode: 'index',
+                intersect: false,
+            },
+            hover: {
+                mode: 'nearest',
+                intersect: true
+            },
+            scales: {
+                xAxes: [{
+                    type: 'time'
+                }],
+                yAxes: [{
+                    scaleLabel: {
+                        display: true,
+                        labelString: 'surface depth (centimeters)'
+                    },
+                    ticks: {
+                        suggestedMin: -30.0,
+                        suggestedMax: 0.0
+                    }
+
+                }]
+            }
+        }
+    }
+
+    var myChart = new Chart(ctx, cfg);
+
+    var samples = 128
+
+    function reset() {
+        samples = 128;
+        updateChart()
+    }
+
+    function zoomout() {
+        samples *= 2;
+        updateChart()
+    }
+
+    function zoomin() {
+        if (samples > 16) {
+            samples /= 2
+        }
+        updateChart()
+    }
+
+    function updateData(measurements) {
+        if (measurements.length < 2) {
+            return
+        }
+
+        for (i = 0; i < measurements.length; i++) {
+            measurements[i].x = moment.utc(measurements[i].x*1000).local()
+        }
+
+        labels = []
+        
+        if (window.alarm_limit != 0.0) {
+            window.alarm_line[0] = jQuery.extend({}, measurements[Math.max(measurements.length - 1 - samples, 0)])
+            window.alarm_line[0].y = window.alarm_limit
+            window.alarm_line[1] = jQuery.extend({}, measurements[measurements.length-1])
+            window.alarm_line[1].y = window.alarm_limit
+            //window.cfg["data"]["datasets"][1].data = alarm_line
+        }
+
+        window.cfg["data"]["datasets"][0].data = measurements
+        window.cfg["data"]["labels"] = labels;
+        myChart.update()
+    }
+
+    function updateChart() {
+        $.getJSON('depth?samples=' + samples, updateData);
+    }
+
+    updateChart()
+
+    // update chart periodically to show latest data
+    setInterval(updateChart, 2000)
+
+    function setAlarmSettings() {
+        var form = {
+            distance: $('#input_distance').val(),
+            time_in_alarm: $('#input_time_in_alarm').val(),
+            enable_audible_alarm: $('#input_enable_audible_alarm').prop('checked')
+        }
+        $.ajax(
+            {
+                type: "POST",
+                url: 'alarm_settings',
+                data: form,
+                success: successAlarmSettingsChange()
+            }
+        )
+    }
+
+    function successAlarmSettingsChange() {
+        alert("Hit OK to set alarm settings.")
+        window.alarm_limit = $('#input_distance').val()
+    }
+    
+</script>
+
+{% endblock %}

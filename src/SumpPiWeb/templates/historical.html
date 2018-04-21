@@ -1,0 +1,164 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div style="width:100%;">
+    <canvas id="canvas"></canvas>
+    <button onclick="updateHistoricalGraph(365)">1 year</button>
+    <button onclick="updateHistoricalGraph(90)">90 days</button>
+    <button onclick="updateHistoricalGraph(30)">30 days</button>
+    <button onclick="updateHistoricalGraph(14)">14 days</button>
+    <button onclick="updateHistoricalGraph(7)">7 days</button>
+</div>
+
+<br>
+<p id="uptime_text">Running and taking measurements for . . . </p>
+
+<script>
+    $.get('uptime').done(function (uptime) {
+        $('#uptime_text').text('Running and taking measurements for ' + uptime)
+    });
+</script>
+
+<script>
+
+
+
+    function updateHistoricalGraph(days) {
+
+        $.getJSON('alarm_settings', function (resp) {
+            $('#input_distance').val(resp.distance)
+            window.alarm_limit = resp.distance
+
+            $('#input_time_in_alarm').val(resp.time_in_alarm)
+
+            $('#input_enable_audible_alarm').prop('checked', resp.enable_audible_alarm == "true")
+        });
+
+        $.when($.getJSON('alarm_settings'), $.getJSON('daily_summaries?days=' + days)).done(function (alarm_settings, daily_summaries_resp) {
+            var summary_obj = daily_summaries_resp[0]
+            min = summary_obj.min
+            avg = summary_obj.avg
+            max = summary_obj.max
+
+            alarm_line = []
+            alarm_line[0] = {
+                t: summary_obj.day[0],
+                y: alarm_settings[0].distance
+            };
+            alarm_line[1] = {
+                t: summary_obj.day[summary_obj.day.length - 1],
+                y: alarm_settings[0].distance
+            };
+
+            var labels = summary_obj.day
+
+
+            window.cfg["data"]["datasets"][0].data = min
+            window.cfg["data"]["datasets"][1].data = avg
+            window.cfg["data"]["datasets"][2].data = max
+            window.cfg["data"]["datasets"][3].data = alarm_line
+            window.cfg["data"]["labels"] = labels;
+            myChart.update()
+        });
+    }
+    updateHistoricalGraph(7)
+
+
+    var ctx = document.getElementById("canvas").getContext('2d');
+    var cfg = {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'min',
+                type: 'line',
+                pointRadius: 2,
+                fill: 'start',
+                lineTension: 0,
+                borderColor: '#cc7a00',
+                backgroundColor: '#008fb3AD',
+                borderWidth: 2
+            },
+            {
+                label: 'avg',
+                type: 'line',
+                pointRadius: 2,
+                fill: '-1',
+                lineTension: 0,
+                borderColor: '#ff9900',
+                backgroundColor: '#00b8e6AD',
+                borderWidth: 2
+            },
+            {
+                label: 'max',
+                type: 'line',
+                pointRadius: 2,
+                fill: '-1',
+                lineTension: 0,
+                borderColor: '#ffcc80',
+                backgroundColor: '#1ad1ffAD',
+                borderWidth: 2
+            },
+            {
+                label: 'alarm depth',
+                type: 'line',
+                pointRadius: 0,
+                fill: 'end',
+                backgroundColor: '#FF000020',
+                lineTension: 0,
+                borderColor: '#AD0000',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            animation: false,
+            title: {
+                display: true,
+                text: "Daily Summaries"
+            },
+            tooltips: {
+                mode: 'index',
+                intersect: false,
+            },
+            hover: {
+                mode: 'nearest',
+                intersect: true
+            },
+            scales: {
+                xAxes: [{
+                    type: 'time',
+                    time:
+                    {
+                        parser: 'MM/DD/YY',
+                        displayFormats: {
+                            hour: 'MM/DD'
+                        }
+                    },
+
+                    distribution: 'series',
+                    ticks: {
+                        source: 'auto'
+                    }
+                }],
+                yAxes: [{
+                    scaleLabel: {
+                        display: true,
+                        labelString: 'surface depth (centimeters)'
+                    },
+                    ticks: {
+                        suggestedMin: -30.0,
+                        suggestedMax: 0.0
+                    }
+                }]
+            }
+        }
+    }
+
+    var myChart = new Chart(ctx, cfg);
+
+
+</script>
+
+{% endblock %}
