@@ -8,6 +8,9 @@ class Emailer(object):
 			self.recipients = config.MAILING_LIST
 
 		def mail(self):
+			if not config.MAILING_USER or not config.MAILING_PASSWORD:
+				return
+
 			server = smtplib.SMTP('smtp.gmail.com', 587)
 			server.starttls()
 			server.login(config.MAILING_USER, config.MAILING_PASSWORD)
