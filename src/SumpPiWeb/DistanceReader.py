@@ -61,6 +61,9 @@ class DistanceReader(Thread):
 
 	def get_distance(self):
 
+		GPIO.output(TRIG, False)
+		time.sleep(0.020)
+
 		GPIO.output(TRIG, True)
 		time.sleep(0.00001)
 		GPIO.output(TRIG, False)
